@@ -167,32 +167,6 @@ output application/json
 				</ee:transform>
 			</otherwise>
 		</choice>
-		<error-handler >
-			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="1a9e152a-a68a-4753-a6ad-bae361912c06" type="DB:CONNECTIVITY" >
-				<ee:transform doc:name="Transform Message" doc:id="9a4cb9ca-c07f-412d-8cbb-3ce9e4b135bd" >
-					<ee:message >
-						<ee:set-payload ><![CDATA[%dw 2.0
-output application/json
----
-{
-	error: "Connectivity error with salesforce-sapi"
-}]]></ee:set-payload>
-					</ee:message>
-				</ee:transform>
-			</on-error-propagate>
-			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="73ec8c4b-47ba-4ac0-a5d6-cfb877582c2c" type="DB:BAD_SQL_SYNTAX" >
-				<ee:transform doc:name="Transform Message" doc:id="8d84c1a0-c6c0-4cf8-9de4-8856d84cd041" >
-					<ee:message >
-						<ee:set-payload ><![CDATA[%dw 2.0
-output application/json
----
-{
-	error: "Made Bad_request with salesforce-sapi"
-}]]></ee:set-payload>
-					</ee:message>
-				</ee:transform>
-			</on-error-propagate>
-		</error-handler>
 	</flow>
 	<flow name="putConsumers" doc:id="24a618c5-51d2-49cd-91e4-3c5a4aebf435" >
 		<set-variable value="#[attributes.queryParams.name]" doc:name="name" doc:id="b91268a3-2ded-4f72-9b6c-18bae7f7f90c" variableName="name"/>
