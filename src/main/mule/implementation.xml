@@ -1,0 +1,371 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:json-logger="http://www.mulesoft.org/schema/mule/json-logger" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:salesforce-sapi="http://www.mulesoft.org/schema/mule/salesforce-sapi"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/salesforce-sapi http://www.mulesoft.org/schema/mule/salesforce-sapi/current/mule-salesforce-sapi.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/json-logger http://www.mulesoft.org/schema/mule/json-logger/current/mule-json-logger.xsd">
+	<salesforce-sapi:config name="Salesforce_sapi_Config" doc:name="Salesforce-sapi Config" doc:id="ab1b6176-696a-4f7e-9949-3f5a240639ea" property_basePath="/api"/>
+	<flow name="getConsumers" doc:id="4a5afb52-2d8e-4a0d-9d63-872128f0a87a" >
+		<choice doc:name="Choice" doc:id="08c84806-27ee-49ce-9459-ac7cb3731884" >
+			<when expression='#[attributes.queryParams.choose=="accounts"]'>
+				<salesforce-sapi:get-accounts doc:name="Get accounts" doc:id="281b3a86-4db3-44d7-ab28-90d4ba432f09" config-ref="Salesforce_sapi_Config"/>
+			</when>
+			<when expression='#[attributes.queryParams.choose=="employees"]'>
+				<salesforce-sapi:get-employees doc:name="Get employees" doc:id="73a08a54-4dd3-40d1-b8f0-2fca5841f0f7" config-ref="Salesforce_sapi_Config"/>
+			</when>
+			<otherwise>
+				<ee:transform doc:name="Transform Message" doc:id="177047d4-44e6-4b12-a0f2-4206766fe601" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Warning": "Select the correct choice option"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="9f99d92e-1aa3-461f-b700-d3356f64d526" type="ANY">
+				<ee:transform doc:name="Transform Message" doc:id="48d97d6b-c6af-4f63-b32e-219812907ccd" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	error: "Connectivity error with salesforce-sapi"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+	<flow name="postConsumers" doc:id="ca79a421-9697-4854-af34-933d749f228c" >
+		<set-variable value="#[payload]" doc:name="payload" doc:id="05fd1bbd-e920-470e-bbab-54eff2ae5ed4" variableName="payload"/>
+		<choice doc:name="Choice" doc:id="b86c2849-19cb-4c3f-ae76-4c748df9d2f6" >
+			<when expression='#[attributes.queryParams.choose=="accounts"]'>
+				<salesforce-sapi:create-account doc:name="Create account" doc:id="dd6e5e5f-6bcd-45a5-bf07-2ce0533484a9" config-ref="Salesforce_sapi_Config"/>
+				<set-payload value="#[vars.payload]" doc:name="Set Payload" doc:id="c64710a2-be98-4c66-a511-02e468940a95" />
+				<ee:transform doc:name="Transform Message" doc:id="174f39d6-c50c-4929-bbe1-39db9b0cb75c">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    (payload map ((value,index) ->{
+        Name: value.Name,
+        AccountNumber: value.AccountNumber,
+        NumberOfEmployees: value.NumberOfEmployees,
+        BillingCity: value.BillingCity
+    }))
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<try doc:name="Try" doc:id="4711c77e-cb73-49bf-a3e4-f0af38b43f65" >
+					<db:insert doc:name="Insert" doc:id="10815c18-9b0f-4660-b125-e9f0d1777c73" config-ref="Database_Config">
+					<db:sql><![CDATA[insert into sql6466036.accounts (Name, AccountNumber, NumberOfEmployees, BillingCity) values (:Name, :AccountNumber, :NumberOfEmployees, :BillingCity);]]></db:sql>
+					<db:input-parameters><![CDATA[#[{
+	Name: payload.Name,
+	AccountNumber: payload.AccountNumber,
+	NumberOfEmployees: payload.NumberOfEmployees,
+	BillingCity: payload.BillingCity
+}]]]></db:input-parameters>
+				</db:insert>
+					<error-handler >
+						<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="6d339350-5bc1-43de-aec4-ee85403b3c6e" type="DB:BAD_SQL_SYNTAX, DB:CONNECTIVITY">
+							<ee:transform doc:name="Transform Message" doc:id="42aed8b5-9555-4818-8745-898ebe3edcc2" >
+								<ee:message >
+									<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	error: "DATABASE CONNECTIVITY"
+}]]></ee:set-payload>
+								</ee:message>
+							</ee:transform>
+						</on-error-propagate>
+					</error-handler>
+				</try>
+				<ee:transform doc:name="Transform Message" doc:id="2fdee516-8e10-4e12-879d-74d9b89ec9bc" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Message": "New record in accounts table inserted successfully"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<when expression='#[attributes.queryParams.choose=="employees"]'>
+				<salesforce-sapi:create-employee doc:name="Create employee" doc:id="899f45f8-d779-449c-8fee-967165031cc0" config-ref="Salesforce_sapi_Config"/>
+				<set-payload value="#[vars.payload]" doc:name="Set Payload" doc:id="1ce39b72-e46b-4084-bae7-e84afc0aa2b0" />
+				<ee:transform doc:name="Transform Message" doc:id="b16a83ca-7b5f-4bc9-9bc4-bb03991575b1">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    (payload map ((value,index) ->{
+        Name: value.Name,
+        EmployeePhone__c: value.EmployeePhone__c,
+        ID__c: value.ID__c
+    }))
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<try doc:name="Try" doc:id="da40bbd8-7e4f-4ce3-a9d3-92456dea3676" >
+					<db:insert doc:name="Insert" doc:id="1dbfe5b3-c151-4e0c-b519-e60d8f3b8d55" config-ref="Database_Config">
+					<db:sql><![CDATA[insert into sql6466036.employees (Name, EmployeePhone__c, ID__C) values (:Name, :EmployeePhone__c, :ID__c);]]></db:sql>
+					<db:input-parameters><![CDATA[#[{
+	Name: payload.Name,
+	EmployeePhone__c: payload.EmployeePhone__c,
+	ID__c: payload.ID__c
+	
+}]]]></db:input-parameters>
+				</db:insert>
+					<error-handler >
+						<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="770fbc8a-b2d3-4551-b9f7-89756fcff8f3" type="DB:BAD_SQL_SYNTAX, DB:CONNECTIVITY" >
+							<ee:transform doc:name="Transform Message" doc:id="562a5704-6556-480f-aedd-72dd162cf765" >
+								<ee:message >
+									<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	error: "DATABASE CONNECTIVITY"
+}]]></ee:set-payload>
+								</ee:message>
+							</ee:transform>
+						</on-error-propagate>
+					</error-handler>
+				</try>
+				<ee:transform doc:name="Transform Message" doc:id="b56fad28-3eee-4ed4-9d3a-8c8a6024fd9d" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Message": "New record in employees table inserted successfully"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="ae6c89a8-c73b-43fe-9bc0-484986216aa3" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Warning": "Select the correct choice option"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="1a9e152a-a68a-4753-a6ad-bae361912c06" type="DB:CONNECTIVITY" >
+				<ee:transform doc:name="Transform Message" doc:id="9a4cb9ca-c07f-412d-8cbb-3ce9e4b135bd" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	error: "Connectivity error with salesforce-sapi"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="73ec8c4b-47ba-4ac0-a5d6-cfb877582c2c" type="DB:BAD_SQL_SYNTAX" >
+				<ee:transform doc:name="Transform Message" doc:id="8d84c1a0-c6c0-4cf8-9de4-8856d84cd041" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	error: "Made Bad_request with salesforce-sapi"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+	<flow name="putConsumers" doc:id="24a618c5-51d2-49cd-91e4-3c5a4aebf435" >
+		<set-variable value="#[attributes.queryParams.name]" doc:name="name" doc:id="b91268a3-2ded-4f72-9b6c-18bae7f7f90c" variableName="name"/>
+		<choice doc:name="Choice" doc:id="a3eaad6b-72ee-44be-94cf-b3ebdd3716cb" >
+			<when expression='#[attributes.queryParams.choose=="accounts"]'>
+				<salesforce-sapi:update-accounts doc:name="Update accounts" doc:id="830bb57b-9a90-4f99-987b-2d551accf493" config-ref="Salesforce_sapi_Config" sc-name="#[attributes.queryParams.name]"/>
+				<try doc:name="Try" doc:id="c5bd1100-3d39-4dfa-a24d-01ae5fc4f7b5">
+					<db:update doc:name="Update" doc:id="b587e6e1-7dc0-41fc-be84-22a7516cc17d" config-ref="Database_Config">
+					<db:sql><![CDATA[update sql6466036.accounts set Name="Bahubali" where Name=:name]]></db:sql>
+					<db:input-parameters><![CDATA[#[{
+	name: vars.name
+}]]]></db:input-parameters>
+				</db:update>
+					<error-handler >
+						<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="4ca9b494-0508-4c69-89d8-c10ea4fbc4d4" type="DB:BAD_SQL_SYNTAX, DB:CONNECTIVITY" >
+							<ee:transform doc:name="Transform Message" doc:id="314254a8-de78-49d4-9d3d-8dfbae554d51" >
+								<ee:message >
+									<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	error: "DATABASE CONNECTIVITY"
+}]]></ee:set-payload>
+								</ee:message>
+							</ee:transform>
+						</on-error-propagate>
+					</error-handler>
+				</try>
+				<ee:transform doc:name="Transform Message" doc:id="08e93171-5d20-4eea-b25a-045939789b57" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Message": "Record updated in accounts table successfully"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<when expression='#[attributes.queryParams.choose=="employees"]'>
+				<salesforce-sapi:update-employees doc:name="Update employees" doc:id="935cf3a4-9867-4a53-816c-e7ffa99d90cb" config-ref="Salesforce_sapi_Config" sc-name="#[attributes.queryParams.name]"/>
+				<try doc:name="Try" doc:id="b135a8ff-d99e-4224-8d28-de9d79b9541d">
+					<db:update doc:name="Update" doc:id="1d974d7a-1986-473a-ad2c-e94135ee4ff2" config-ref="Database_Config">
+					<db:sql><![CDATA[update sql6466036.employees set Name="Pushpa" where Name=:name]]></db:sql>
+					<db:input-parameters><![CDATA[#[{
+	name: vars.name
+}]]]></db:input-parameters>
+				</db:update>
+					<error-handler >
+						<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="4e7a654a-c083-4429-89c7-7fc4fc1de259" type="DB:BAD_SQL_SYNTAX, DB:CONNECTIVITY" >
+							<ee:transform doc:name="Transform Message" doc:id="302437b6-ba3e-4316-8aff-bb58deead457" >
+								<ee:message >
+									<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	error: "DATABASE CONNECTIVITY"
+}]]></ee:set-payload>
+								</ee:message>
+							</ee:transform>
+						</on-error-propagate>
+					</error-handler>
+				</try>
+				<ee:transform doc:name="Transform Message" doc:id="3baaea9b-8c25-4082-b546-c5b7e7decccb" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Message": "Record updated in employees table successfully"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="c06bc1a6-5cfa-407e-b765-ca00de7e96fb" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Warning": "Select the correct choice option"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="deleteConsumers" doc:id="db0f0cf4-f50e-4933-9ef0-686439d98ab0" >
+		<set-variable value="#[attributes.queryParams.name]" doc:name="name" doc:id="84078a35-6754-43be-a925-e66df7878e5c" variableName="name"/>
+		<choice doc:name="Choice" doc:id="2480cc4a-8ab7-436f-9a1a-dee4f971e59d" >
+			<when expression='#[attributes.queryParams.choose=="accounts"]'>
+				<salesforce-sapi:delete-accounts doc:name="Delete accounts" doc:id="c70d3e91-6e77-407d-9330-b84b8e44ac32" config-ref="Salesforce_sapi_Config" sc-name="#[attributes.queryParams.name]"/>
+				<try doc:name="Try" doc:id="a18844ed-8708-4784-9f9d-2f9108e01910" >
+					<db:delete doc:name="Delete" doc:id="e3539932-e872-4a74-b21d-504df299d993" config-ref="Database_Config">
+					<db:sql><![CDATA[delete from sql6466036.accounts where Name=:name]]></db:sql>
+					<db:input-parameters><![CDATA[#[{
+	name: vars.name
+}]]]></db:input-parameters>
+				</db:delete>
+					<error-handler >
+						<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="b0db3fc1-8c81-439b-b6f0-616e6ed306cb" type="DB:BAD_SQL_SYNTAX, DB:CONNECTIVITY" >
+							<ee:transform doc:name="Transform Message" doc:id="d7243937-d588-4650-bd1f-d4f99155d831" >
+								<ee:message >
+									<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	error: "DATABASE CONNECTIVITY"
+}]]></ee:set-payload>
+								</ee:message>
+							</ee:transform>
+						</on-error-propagate>
+					</error-handler>
+				</try>
+				<ee:transform doc:name="Transform Message" doc:id="169eaa49-8915-4ea1-8c4b-df26a7879d63" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Message": "Record deleted in accounts table successfully"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<when expression='#[attributes.queryParams.choose=="employees"]'>
+				<salesforce-sapi:delete-employees doc:name="Delete employees" doc:id="ec4cf414-674e-413c-9d84-d49413c1b092" config-ref="Salesforce_sapi_Config" sc-name="#[attributes.queryParams.name]"/>
+				<try doc:name="Try" doc:id="a9b07f51-92c5-4646-8339-5197b6e3de31" >
+					<db:delete doc:name="Delete" doc:id="cfc65689-062a-4299-b3bd-8982d12e6756" config-ref="Database_Config">
+					<db:sql><![CDATA[delete from sql6466036.employees where Name=:name]]></db:sql>
+					<db:input-parameters><![CDATA[#[{
+	name: vars.name
+}]]]></db:input-parameters>
+				</db:delete>
+					<error-handler >
+						<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="08d57587-bc35-422c-8af6-792a7f4801ae" type="DB:BAD_SQL_SYNTAX, DB:CONNECTIVITY" >
+							<ee:transform doc:name="Transform Message" doc:id="273c070d-f0c1-463b-805d-6dc0f95b2c28" >
+								<ee:message >
+									<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	error: "DATABASE CONNECTIVITY"
+}]]></ee:set-payload>
+								</ee:message>
+							</ee:transform>
+						</on-error-propagate>
+					</error-handler>
+				</try>
+				<ee:transform doc:name="Transform Message" doc:id="1e201b26-5cd8-4b8f-9b5a-daa9316343e6" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Message": "Record deleted in employees table successfully"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="875a0d7c-d90d-4590-b0ae-d33e978d75dc" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Warning": "Select the correct choice option"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+</mule>

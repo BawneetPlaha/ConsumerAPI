@@ -1,0 +1,14 @@
+[
+{
+	"Name": "Ram",
+	"AccountNumber": "2427267674",
+	"NumberOfEmployees": 50,
+	"BillingCity": "Texas"
+},
+{
+	"Name": "Sita",
+	"AccountNumber": "87238783",
+	"NumberOfEmployees": 100,
+	"BillingCity": "Florida"
+}
+]
